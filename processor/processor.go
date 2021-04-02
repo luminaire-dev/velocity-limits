@@ -1,7 +1,6 @@
 package processor
 
 import (
-	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -12,97 +11,89 @@ const (
 	maxLoadCount = 3
 )
 
-var (
-	approvedLoads = make(map[string][]Load)
-	processedLoads = make(map[string]Response)
-)
-
-type Load struct {
-	ID         string    `json:"id"`
-	CustomerID string    `json:"customer_id"`
-	LoadAmount string    `json:"load_amount"`
-	Time       time.Time `json:"time"`
+type Processor struct {
+	approvedLoads  map[string][]Load
+	processedLoads map[string]Response
 }
 
-type Response struct {
-	ID         string `json:"id"`
-	CustomerID string `json:"customer_id"`
-	Accepted   bool   `json:"accepted"`
+func NewProcessor() *Processor {
+	return &Processor{
+		approvedLoads:  make(map[string][]Load),
+		processedLoads: make(map[string]Response),
+	}
 }
 
-// approve or reject the incoming load based on limits validation
-func Process(load []byte)[]byte {
+// Process approves or rejects the incoming load based on limits validation
+func (p *Processor) Load(incomingLoad Load) *Response {
+	// approve status set to true be default
+	approved := true
 
-	// parse the JSON-encoded data
-	var incomingLoad Load
-	if err := json.Unmarshal(load, &incomingLoad)
-	err != nil {
+	// parse load amount to float to use it mathematically
+	incomingLoadAmount, err := strconv.ParseFloat(incomingLoad.LoadAmount[1:], 64)
+	if err != nil {
 		panic(err)
 	}
 
-	// parse load amount to float to use it mathematically
-	incomingLoadAmount, parseErr := strconv.ParseFloat(incomingLoad.LoadAmount[1:], 64)
-	if parseErr != nil {
-	   panic(parseErr)
-	 }
-
 	// reject any incoming load amount greater than 5000, as it already fails the daily limit check
-	if(incomingLoadAmount > dailyLimit){
-		return GenerateResponse(incomingLoad, false)
+	if incomingLoadAmount > dailyLimit {
+		return p.newResponse(incomingLoad, false)
 	}
 
 	// ignore load with duplicate ID
-	if(processedLoads[incomingLoad.ID].CustomerID == incomingLoad.CustomerID) {
+	if p.processedLoads[incomingLoad.ID].CustomerID == incomingLoad.CustomerID {
 		return nil
 	}
 
 	// iterate over processed load to get daily and weekly data per customer
-	var totalDailyAmount float64 = 0;
-	var totalWeeklyAmount float64 = 0;
-	var transactionCount = 0;
-	for _, processedLoad := range approvedLoads[incomingLoad.CustomerID] {
+	var totalDailyAmount float64 = 0
+	var totalWeeklyAmount float64 = 0
+	var transactionCount = 0
+	for _, processedLoad := range p.approvedLoads[incomingLoad.CustomerID] {
 
 		// parse processed load amount to float to use it mathematically
-		processedLoadAmount, parseErr := strconv.ParseFloat(processedLoad.LoadAmount[1:], 64)
-		if parseErr != nil {
-			 panic(parseErr)
-		 }
+		processedLoadAmount, err := strconv.ParseFloat(processedLoad.LoadAmount[1:], 64)
+		if err != nil {
+			panic(err)
+		}
 
 		// add daily total and incrment cout for same day loads
-		if(DoesDayMatch(incomingLoad.Time, processedLoad.Time)){
-			 totalDailyAmount += processedLoadAmount
-			 transactionCount ++
+		if IsSameDay(incomingLoad.Time, processedLoad.Time) {
+			totalDailyAmount += processedLoadAmount
+			transactionCount++
 		}
 
 		// add weekly total for same week loads
-	  if(DoesWeekMatch(incomingLoad.Time, processedLoad.Time)) {
+		if IsSameWeek(incomingLoad.Time, processedLoad.Time) {
 			totalWeeklyAmount += processedLoadAmount
-	  }
+		}
 	}
 
 	// reject load if daily transaction count is exceeded
-	if(transactionCount == maxLoadCount){
-		return GenerateResponse(incomingLoad, false)
+	if transactionCount == maxLoadCount {
+		approved = false
+		return p.newResponse(incomingLoad, approved)
 	}
 
 	// reject load if daily trasaction limit is exceeded
-	if(totalDailyAmount + incomingLoadAmount > dailyLimit){
-		return GenerateResponse(incomingLoad, false)
+	if totalDailyAmount+incomingLoadAmount > dailyLimit {
+		approved = false
+		return p.newResponse(incomingLoad, approved)
 	}
 
 	// reject load if weekly trasaction limit is exceeded
-	if(totalWeeklyAmount + incomingLoadAmount > weeklyLimit){
-		return GenerateResponse(incomingLoad, false)
+	if totalWeeklyAmount+incomingLoadAmount > weeklyLimit {
+		approved = false
+		return p.newResponse(incomingLoad, approved)
 	}
 
 	// store load into approved loads
-	approvedLoads[incomingLoad.CustomerID] = append(approvedLoads[incomingLoad.CustomerID], incomingLoad)
+	p.approvedLoads[incomingLoad.CustomerID] = append(p.approvedLoads[incomingLoad.CustomerID], incomingLoad)
 
-	return GenerateResponse(incomingLoad, true)
+	return p.newResponse(incomingLoad, approved)
 }
 
-// generate the json response that will be added to the output file
-func GenerateResponse(load Load, accepted bool) []byte {
+// newResponse retuns a response that will be added to the output file
+func (p *Processor) newResponse(load Load, accepted bool) *Response {
 	r := Response{
 		ID:         load.ID,
 		CustomerID: load.CustomerID,
@@ -110,25 +101,21 @@ func GenerateResponse(load Load, accepted bool) []byte {
 	}
 
 	// store load into processed Loads
-	processedLoads[load.ID] = r
+	p.processedLoads[load.ID] = r
 
-	res, err := json.Marshal(&r)
-	if err != nil {
-		panic(err)
-	}
-	return res
+	return &r
 }
 
 // check if two date are on the same day
-func DoesDayMatch(date1, date2 time.Time) bool {
-    y1, m1, d1 := date1.Date()
-    y2, m2, d2 := date2.Date()
-    return y1 == y2 && m1 == m2 && d1 == d2
+func IsSameDay(date1, date2 time.Time) bool {
+	y1, m1, d1 := date1.Date()
+	y2, m2, d2 := date2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
 // check if two dates are in the same week
-func DoesWeekMatch(incomingLoadTime, processedLoadTime time.Time) bool {
-		year, week := incomingLoadTime.ISOWeek()
-		year2, week2 := processedLoadTime.ISOWeek()
-		return year == year2 && week == week2
+func IsSameWeek(incomingLoadTime, processedLoadTime time.Time) bool {
+	year, week := incomingLoadTime.ISOWeek()
+	year2, week2 := processedLoadTime.ISOWeek()
+	return year == year2 && week == week2
 }
