@@ -33,7 +33,7 @@ Run the unit tests:
 make test
 ```
 
-Compare the generated output  agaisnt the expected output using `diff`. (No output means the files match ✔️ ):
+Compare the generated output  agaisnt the expected output using `diff`. (No output means the files match ✔️ )
 
 ```sh
 make comapre
