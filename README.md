@@ -1,6 +1,6 @@
 # Velocity Limits Validator 💸
 
-Be kind, this is my first time using Go! 🙇🏻‍♀️
+Be kind, this is my first time using Go 🙇🏻‍♀️
 
 ## About The Project 📙
 
