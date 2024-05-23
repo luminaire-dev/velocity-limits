@@ -1,7 +1,5 @@
 # Velocity Limits Validator 💸
 
-Be kind, this is my first time using Go 🙇🏻‍♀️
-
 ## About The Project 📙
 
 In finance, it's common for accounts to have so-called "velocity limits". This program accepts or declines attempts to load funds into customers' accounts in real-time. The program will read load attempts, line by line from `input.txt` and save a single-line JSON payload for each load attempt in `generated-output.txt`.
