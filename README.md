@@ -14,7 +14,7 @@ If a load ID is observed more than once for a particular user, all but the first
 
 ## Running The Project 🏃🏽‍♀️
 
- 1. If you haven't already, install Go: "https://golang.org/doc/instal"
+ 1. If you haven't already, install Go: "https://golang.org/doc/install"
  2. Clone this repo using `git clone https://github.com/luminaire-dev/velocity-limits.git` or `git@github.com:luminaire-dev/velocity-limits.git` 
  3. Open terminal or cmd prompt and cd into the `velocity-limits` directory
 
